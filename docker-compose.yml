@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: kokotoba-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kokotoba}
+      POSTGRES_USER: ${POSTGRES_USER:-kokotoba}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kokotoba_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-kokotoba} -d ${POSTGRES_DB:-kokotoba}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  migrate:
+    image: flyway/flyway:11.20.3-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - -url=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-kokotoba}
+      - -user=${POSTGRES_USER:-kokotoba}
+      - -password=${POSTGRES_PASSWORD:-kokotoba_dev_password}
+      - -connectRetries=10
+      - -locations=filesystem:/flyway/migrations
+      - migrate
+    volumes:
+      - ./postgres/migrations:/flyway/migrations:ro
+
+volumes:
+  postgres_data:
+    name: kokotoba_postgres_data
